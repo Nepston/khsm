@@ -11,42 +11,42 @@ RSpec.describe GameQuestion, type: :model do
   let(:game_question) { FactoryBot.create(:game_question, a: 2, b: 1, c: 4, d: 3) }
 
   # группа тестов на игровое состояние объекта вопроса
-  context 'game status' do
+  describe '#variants' do
     # тест на правильную генерацию хэша с вариантами
-    it 'correct .variants' do
+    it 'return correct variants' do
       expect(game_question.variants).to eq({'a' => game_question.question.answer2,
                                             'b' => game_question.question.answer1,
                                             'c' => game_question.question.answer4,
                                             'd' => game_question.question.answer3})
     end
+  end
 
-    it 'correct .answer_correct?' do
+  describe '#answer_correct?' do
+    it 'return true if the answer is correct' do
       # именно под буквой b в тесте мы спрятали указатель на верный ответ
       expect(game_question.answer_correct?('b')).to be_truthy
     end
+  end
 
-    it 'correct .level' do
+  describe '#level' do
+    it 'return correct current question level' do
       expect(game_question.level).to eq(game_question.question.level)
     end
+  end
 
-    it 'correct .text' do
+  describe '#text' do
+    it 'return correct current question text' do
       expect(game_question.text).to eq(game_question.question.text)
     end
+  end
 
-    it 'correct .correct_answer_key' do
+  describe '#correct_answer_key' do
+    it 'return correct answer key' do
       expect(game_question.correct_answer_key).to eq 'b'
     end
   end
 
-  # help_hash у нас имеет такой формат:
-  # {
-  #   fifty_fifty: ['a', 'b'], # При использовании подсказски остались варианты a и b
-  #   audience_help: {'a' => 42, 'c' => 37 ...}, # Распределение голосов по вариантам a, b, c, d
-  #   friend_call: 'Василий Петрович считает, что правильный ответ A'
-  # }
-  #
-
-  context 'user helpers' do
+  describe 'user helpers' do
     it 'correct audience_help' do
       expect(game_question.help_hash).not_to include(:audience_help)
 

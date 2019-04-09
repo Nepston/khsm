@@ -1,5 +1,3 @@
-# (c) goodprogrammer.ru
-
 require 'rails_helper'
 require 'support/my_spec_helper' # наш собственный класс с вспомогательными методами
 
@@ -27,6 +25,40 @@ RSpec.describe GamesController, type: :controller do
       expect(response.status).not_to eq(200) # статус не 200 ОК
       expect(response).to redirect_to(new_user_session_path) # devise должен отправить на логин
       expect(flash[:alert]).to be # во flash должен быть прописана ошибка
+    end
+
+    it 'can not create new game' do
+      generate_questions(15)
+      post :create
+
+      expect(response.status).not_to eq(200)
+      expect(response).to redirect_to(new_user_session_path)
+      expect(flash[:alert]).to be
+    end
+
+    it 'can not take money' do
+      put :take_money, id: game_w_questions.id
+      expect(response.status).not_to eq 200
+      expect(response).to redirect_to(new_user_session_path)
+      expect(flash[:alert]).to be
+    end
+
+    it 'can not give the answer' do
+      put :answer, id: game_w_questions.id, letter: game_w_questions.current_game_question.correct_answer_key
+
+      expect(response.status).not_to eq 200
+      expect(response).to redirect_to(new_user_session_path)
+      expect(flash[:alert]).to be
+      expect(game_w_questions.current_level).to be_zero
+      expect(game_w_questions.status).to eq :in_progress
+    end
+
+    it 'can not give help' do
+      put :help, id: game_w_questions.id
+
+      expect(response.status).not_to eq 200
+      expect(response).to redirect_to(new_user_session_path)
+      expect(flash[:alert]).to be
     end
   end
 
@@ -74,6 +106,28 @@ RSpec.describe GamesController, type: :controller do
       expect(flash.empty?).to be_truthy # удачный ответ не заполняет flash
     end
 
+    it 'answers wrong' do
+      wrong_answer = %w[a b c d].reject { |a| a == game_w_questions.current_game_question.correct_answer_key }.sample
+      put :answer, id: game_w_questions.id, letter: wrong_answer
+      game = assigns(:game)
+
+      expect(game.current_level).to be_zero
+      expect(game.finished?).to be true
+      expect(game.status).to eq :fail
+      expect(flash[:alert]).to be
+      expect(response).to redirect_to(user_path(user))
+    end
+
+    it '#show alien game' do
+      alien_game = FactoryBot.create(:game_with_questions)
+
+      get :show, id: alien_game.id
+
+      expect(response.status).not_to eq(200) # статус не 200 ОК
+      expect(response).to redirect_to(root_path)
+      expect(flash[:alert]).to be # во flash должен быть прописана ошибка
+    end
+
     # тест на отработку "помощи зала"
     it 'uses audience help' do
       # сперва проверяем что в подсказках текущего вопроса пусто
@@ -90,6 +144,39 @@ RSpec.describe GamesController, type: :controller do
       expect(game.current_game_question.help_hash[:audience_help]).to be
       expect(game.current_game_question.help_hash[:audience_help].keys).to contain_exactly('a', 'b', 'c', 'd')
       expect(response).to redirect_to(game_path(game))
+    end
+
+    # юзер пытается создать новую игру, не закончив старую
+    it 'try to create second game' do
+      # убедились что есть игра в работе
+      expect(game_w_questions.finished?).to be_falsey
+
+      # отправляем запрос на создание, убеждаемся что новых Game не создалось
+      expect { post :create }.to change(Game, :count).by(0)
+
+      game = assigns(:game) # вытаскиваем из контроллера поле @game
+      expect(game).to be_nil
+
+      # и редирект на страницу старой игры
+      expect(response).to redirect_to(game_path(game_w_questions))
+      expect(flash[:alert]).to be
+    end
+
+    it 'takes money' do
+      # вручную поднимем уровень вопроса до выигрыша 200
+      game_w_questions.update_attribute(:current_level, 2)
+
+      put :take_money, id: game_w_questions.id
+      game = assigns(:game)
+      expect(game.finished?).to be_truthy
+      expect(game.prize).to eq(200)
+
+      # пользователь изменился в базе, надо в коде перезагрузить!
+      user.reload
+      expect(user.balance).to eq(200)
+
+      expect(response).to redirect_to(user_path(user))
+      expect(flash[:warning]).to be
     end
   end
 end
